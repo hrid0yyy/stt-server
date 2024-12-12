@@ -19,7 +19,7 @@ app.use("/exchange", exchangeBookRoutes);
 
 // Root route
 app.get("/", (req, res) => {
-  res.json({ message: "Express Server is running!" });
+  res.json({ message: "Shelf to tales is running!" });
 });
 
 app.get("/health", (req, res) => {
