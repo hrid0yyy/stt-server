@@ -8,24 +8,50 @@ router.get("/", (req, res) => {
 
 // To get user details
 router.post("/details", async (req, res) => {
-  const { id } = req.body;
+  try {
+    // Extract token from request body
+    const { token } = req.body;
 
-  if (!id) {
-    return res.status(400).json({ success: false, error: "Id is required!" });
+    if (!token) {
+      return res
+        .status(401)
+        .json({ success: false, error: "No token provided" });
+    }
+
+    // Check if token is still valid
+    const { data, error } = await supabase.auth.getUser(token);
+
+    if (error || !data.user) {
+      return res
+        .status(401)
+        .json({ success: false, error: "Invalid or expired token" });
+    }
+
+    const id = data.user.id;
+
+    if (!id) {
+      return res.status(400).json({ success: false, error: "Id is required!" });
+    }
+
+    // Fetch user from Supabase
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (error || !data) {
+        return res.status(401).json({ success: false, error: "Invalid ID" });
+      }
+
+      return res.json({ success: true, user: data });
+    } catch (err) {
+      res.status(500).json({ success: false, details: err.message });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, details: err.message });
   }
-
-  // Fetch user from Supabase
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
-    .eq("id", id)
-    .single();
-
-  if (error || !data) {
-    return res.status(401).json({ success: false, error: "Invalid ID" });
-  }
-
-  return res.json({ success: true, user: data });
 });
 
 router.put("/update", async (req, res) => {

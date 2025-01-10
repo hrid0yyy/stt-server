@@ -111,32 +111,6 @@ router.post("/auth/signout", async (req, res) => {
   }
 });
 
-router.get("/auth/user", async (req, res) => {
-  try {
-    // Extract token from request body
-    const { token } = req.body;
-
-    if (!token) {
-      return res
-        .status(401)
-        .json({ success: false, error: "No token provided" });
-    }
-
-    // Check if token is still valid
-    const { data, error } = await supabase.auth.getUser(token);
-
-    if (error || !data.user) {
-      return res
-        .status(401)
-        .json({ success: false, error: "Invalid or expired token" });
-    }
-
-    res.json({ success: true, userId: data.user.id });
-  } catch (err) {
-    res.status(500).json({ success: false, details: err.message });
-  }
-});
-
 // Login Route For Owner
 router.post("/auth/owner/login", async (req, res) => {
   const { email, password } = req.body;
