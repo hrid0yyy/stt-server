@@ -15,6 +15,14 @@ app.use("/api", authRoutes);
 const userDetailsRoutes = require("./user/details");
 app.use("/api/user", userDetailsRoutes);
 
+// Shop owner book Routes
+const soBookRoutes = require("./shopowner/book");
+app.use("/api/so/book", soBookRoutes);
+
+// Shop owner discount Routes
+const soDiscount = require("./shopowner/discount");
+app.use("/api/so/discount", soDiscount);
+
 // Default Route
 app.get("/", (req, res) => {
   res.send("Welcome To SHELF TO TALES Server!");
