@@ -11,17 +11,13 @@ app.use(express.json());
 const authRoutes = require("./authentication/auth");
 app.use("/api", authRoutes);
 
-// User details Routes
-const userDetailsRoutes = require("./user/details");
-app.use("/api/user", userDetailsRoutes);
+// User Routes
+const userRoutes = require("./user/main");
+app.use("/api/v1/user", userRoutes);
 
-// Shop owner book Routes
-const soBookRoutes = require("./shopowner/book");
-app.use("/api/so/book", soBookRoutes);
-
-// Shop owner discount Routes
-const soDiscount = require("./shopowner/discount");
-app.use("/api/so/discount", soDiscount);
+//Shop owner routes
+const soRoutes = require("./shopowner/main");
+app.use("/api/v1/so", soRoutes);
 
 // Default Route
 app.get("/", (req, res) => {
