@@ -60,6 +60,103 @@ router.post("/place-order", async (req, res) => {
   }
 });
 
+router.get("/total", async (req, res) => {
+  try {
+    const { userId } = req.body; // Change req.body to req.query for GET request
+
+    if (!userId) {
+      return res
+        .status(400)
+        .json({ success: false, error: "User ID is required" });
+    }
+
+    // Fetch cart items for the user
+    const { data: cartItems, error: cartError } = await supabase
+      .from("cart")
+      .select("bookId, quantity")
+      .eq("userId", userId);
+
+    if (cartError) throw cartError;
+
+    if (!cartItems || cartItems.length === 0) {
+      return res.status(200).json({ success: true, total_price: 0 });
+    }
+
+    // Extract book IDs from cart
+    const bookIds = cartItems.map((item) => item.bookId);
+
+    // Fetch book prices, ensure correct column name (e.g., `bookId`)
+    const { data: books, error: booksError } = await supabase
+      .from("books")
+      .select("bookId, price") // Change 'id' to 'bookId' if necessary
+      .in("bookId", bookIds);
+
+    if (booksError) throw booksError;
+
+    // Create a price lookup
+    const priceMap = {};
+    books.forEach((book) => {
+      priceMap[book.bookId] = book.price; // Ensure bookId matches
+    });
+
+    // Calculate total price
+    const totalPrice = cartItems.reduce((total, item) => {
+      return total + item.quantity * (priceMap[item.bookId] || 0);
+    }, 0);
+
+    res.status(200).json({ success: true, total_price: totalPrice });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Function to get  total price
+const getTotalPrice = async (userId) => {
+  try {
+    if (!userId) {
+      throw new Error("User ID is required");
+    }
+
+    // Fetch cart items for the user
+    const { data: cartItems, error: cartError } = await supabase
+      .from("cart")
+      .select("bookId, quantity")
+      .eq("userId", userId);
+
+    if (cartError) throw cartError;
+
+    if (!cartItems || cartItems.length === 0) {
+      return { success: true, total_price: 0 };
+    }
+
+    // Extract book IDs from cart
+    const bookIds = cartItems.map((item) => item.bookId);
+
+    // Fetch book prices, ensure correct column name (e.g., `bookId`)
+    const { data: books, error: booksError } = await supabase
+      .from("books")
+      .select("bookId, price") // Change 'id' to 'bookId' if necessary
+      .in("bookId", bookIds);
+
+    if (booksError) throw booksError;
+
+    // Create a price lookup
+    const priceMap = {};
+    books.forEach((book) => {
+      priceMap[book.bookId] = book.price; // Ensure bookId matches
+    });
+
+    // Calculate total price
+    const totalPrice = cartItems.reduce((total, item) => {
+      return total + item.quantity * (priceMap[item.bookId] || 0);
+    }, 0);
+
+    return { success: true, total_price: totalPrice };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
 // Function to handle placing an order
 const placeOrder = async (userId, address) => {
   if (!userId || !address) {
