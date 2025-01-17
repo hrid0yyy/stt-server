@@ -91,7 +91,6 @@ const deleteExpiredDiscounts = async () => {
   }
 };
 
-// Run the cleanup job every 1 minute (1000 ms)
-setInterval(deleteExpiredDiscounts, 1000);
+// setInterval(deleteExpiredDiscounts, 1000);
 
 module.exports = router;

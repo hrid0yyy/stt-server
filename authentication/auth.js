@@ -9,7 +9,7 @@ router.get("/auth", (req, res) => {
 });
 
 router.post("/auth/signup", async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, username } = req.body;
 
   if (!email || !password) {
     return res
@@ -37,7 +37,7 @@ router.post("/auth/signup", async (req, res) => {
     // Insert only the user ID into the "users" table
     const { error: insertError } = await supabase
       .from("users")
-      .insert([{ id: userId }]);
+      .insert([{ id: userId, email: email, username: username }]);
 
     if (insertError) {
       return res

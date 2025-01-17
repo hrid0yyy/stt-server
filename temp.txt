@@ -1,22 +1,35 @@
-const id = data.user.id;
 
-    if (!id) {
-      return res.status(400).json({ success: false, error: "Id is required!" });
-    }
+exchange books outline 
+1. add books
+2. generalised function for uploading image to supabase bucket which returns the image url
+3. fetch books
+4. search books
+5. req for books (push notifications) 
+6. accept/ decline book. (push notifications) 
 
-    // Fetch user from Supabase
-    try {
-      const { data, error } = await supabase
-        .from("users")
-        .select("*")
-        .eq("id", id)
-        .single();
 
-      if (error || !data) {
-        return res.status(401).json({ success: false, error: "Invalid ID" });
-      }
 
-      return res.json({ success: true, user: data });
-    } catch (err) {
-      res.status(500).json({ success: false, details: err.message });
-    }
+
+
+
+
+Payment pre conditions (serial matters) 
+
+
+3. enough balance or not (optional if dummy payment) 
+
+Payment post Condition (serial doesn't matters)
+
+
+decrease balance (optional if dummy payment)
+
+ 
+(screen poping up from below not modal and enter card number there and rum the payment function) 
+
+
+message feature 
+1. send message from profile
+2. fetch inbox 
+
+
+search books from image search

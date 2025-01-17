@@ -7,7 +7,7 @@ router.get("/", (req, res) => {
 });
 
 // To get user details
-router.post("/details", async (req, res) => {
+router.post("/check", async (req, res) => {
   try {
     // Extract token from request body
     const { token } = req.body;

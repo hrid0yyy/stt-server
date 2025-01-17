@@ -19,6 +19,10 @@ app.use("/api/v1/user", userRoutes);
 const soRoutes = require("./shopowner/main");
 app.use("/api/v1/so", soRoutes);
 
+//utils routes
+const utils = require("./utils/main");
+app.use("/api/v1/utils", utils);
+
 // Default Route
 app.get("/", (req, res) => {
   res.send("Welcome To SHELF TO TALES Server!");
