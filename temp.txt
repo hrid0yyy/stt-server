@@ -1,9 +1,5 @@
 
 exchange books outline 
-1. add books
-2. generalised function for uploading image to supabase bucket which returns the image url
-3. fetch books
-4. search books
 5. req for books (push notifications) 
 6. accept/ decline book. (push notifications) 
 

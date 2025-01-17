@@ -361,7 +361,7 @@ router.post("/response", async (req, res) => {
         const { data: senderData, error: senderError } = await supabase
           .from("exchange_books")
           .update({
-            available: 0,
+            available: 1,
           })
           .eq("exchangeId", sender_eid)
           .select("*");
@@ -420,15 +420,15 @@ router.post("/response", async (req, res) => {
 router.get("/requests", async (req, res) => {
   try {
     // Extract receiver_id from query parameters or request body
-    const { receiver_id } = req.query; // Assuming the receiver_id is passed as a query parameter
+    const { p_receiver_id } = req.query; // Assuming the receiver_id is passed as a query parameter
 
-    if (!receiver_id) {
+    if (!p_receiver_id) {
       return res.status(400).json({ error: "receiver_id is required" });
     }
 
     // Call the RPC function using the Supabase client
     const { data, error } = await supabase.rpc("get_exchange_requests", {
-      receiver_id,
+      p_receiver_id,
     });
 
     // Handle any errors from the RPC call
