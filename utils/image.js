@@ -3,6 +3,7 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs/promises");
 const supabase = require("../config/supabase"); // Your Supabase client configuration
+const Tessaract = require("tesseract.js");
 
 const router = express.Router();
 
@@ -56,5 +57,102 @@ router.post("/upload", upload.single("image"), async (req, res) => {
     res.status(500).json({ success: false, error: "File upload failed" });
   }
 });
+
+// Route for extracting text from an image
+router.post("/search", upload.single("image"), async (req, res) => {
+  try {
+    // Check if a file is uploaded
+
+    if (!req.file) {
+      return res
+        .status(400)
+        .json({ success: false, error: "No file uploaded" });
+    }
+
+    // Resolve the file path to the absolute path
+    const filePath = path.resolve(__dirname, "..", req.file.path); // Assuming the file is inside the "uploads/" folder
+
+    // Ensure the file exists before attempting text extraction
+    const fileExists = await fs
+      .access(filePath)
+      .then(() => true)
+      .catch(() => false);
+
+    if (!fileExists) {
+      return res.status(400).json({ success: false, error: "File not found" });
+    }
+
+    // Extract text using Tesseract
+    const { data } = await Tessaract.recognize(filePath, "eng");
+
+    // Delete the temporary file after processing
+    await fs.unlink(filePath);
+
+    const searchItems = extractWords(data.text);
+
+    try {
+      let query = supabase.from("books").select("*");
+
+      // Check if searchItems is provided and is an array
+      if (Array.isArray(searchItems) && searchItems.length > 0) {
+        // Construct the OR condition for each item in the array
+        const searchConditions = searchItems
+          .map(
+            (item) =>
+              `title.ilike.%${item}%,description.ilike.%${item}%,genres.ilike.%${item}%,characters.ilike.%${item}%,attributes.ilike.%${item}%,author.ilike.%${item}%`
+          )
+          .join(",");
+
+        // Apply search filter using the OR condition
+        query = query.or(searchConditions);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        throw error;
+      }
+
+      // Only send the response once here
+      return res.status(200).json({ success: true, books: data });
+    } catch (error) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    // This part should not be here anymore, as we're sending the response above
+    // res.status(200).json({
+    //   success: true,
+    //   books: "No Books Found",
+    // });
+  } catch (error) {
+    console.error("Error during text extraction:", error.message);
+
+    // Delete the temporary file in case of an error
+    if (req.file && req.file.path) {
+      await fs
+        .unlink(req.file.path)
+        .catch((err) => console.error("Error deleting file:", err.message));
+    }
+
+    return res
+      .status(500)
+      .json({ success: false, error: "Text extraction failed" });
+  }
+});
+
+function extractWords(text) {
+  // Clean the text (remove unwanted newlines and characters)
+  const cleanedText = text.replace(/\n+/g, " ").replace(/~~/g, "").trim();
+
+  // Split the cleaned text into words
+  const wordsArray = cleanedText.split(/\s+/);
+
+  // Filter out words that contain special characters (only letters and numbers are kept)
+  const filteredWords = wordsArray.filter((word) =>
+    /^[a-zA-Z0-9]+$/.test(word)
+  );
+
+  return filteredWords;
+}
 
 module.exports = router;

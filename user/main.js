@@ -7,6 +7,7 @@ const payment = require("./payment");
 const book = require("./book");
 const exchange = require("./exchange");
 const notification = require("./notification");
+const ebooks = require("./ebooks");
 
 router.use("/cart", cart);
 router.use("/details", details);
@@ -14,6 +15,7 @@ router.use("/payment", payment);
 router.use("/book", book);
 router.use("/exchange", exchange);
 router.use("/notification", notification);
+router.use("/ebooks", ebooks);
 
 router.get("/", (req, res) => {
   res.json({ message: "User API is working!" });
