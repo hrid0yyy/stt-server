@@ -302,4 +302,33 @@ router.post("/reviews", async (req, res) => {
   }
 });
 
+router.get("/get_wishlist", async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    // Ensure userId is provided
+    if (!userId) {
+      return res.status(400).json({ error: "userId is required" });
+    }
+
+    // Query the wishlist table for the given userId
+    const { data, error } = await supabase
+      .from("wishlist")
+      .select("*,books(*)")
+      .eq("userId", userId); // Filter rows based on userId
+
+    // If there's an error, return the error message
+    if (error) {
+      console.error("Error fetching wishlist:", error);
+      return res.status(500).json({ error: "Error fetching wishlist" });
+    }
+
+    // Return the fetched wishlist data
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error("Error in get_wishlist route:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 module.exports = router;

@@ -6,9 +6,9 @@ router.get("/", (req, res) => {
   res.json({ message: "User ebook API is working!" });
 });
 
-router.get("/fetch", async (req, res) => {
+router.post("/fetch", async (req, res) => {
   try {
-    const { search, sort } = req.query;
+    const { search, sort } = req.body;
 
     // Call fetchEbooks with the searchTerm and sortOrder from query parameters
     const ebooks = await fetchEbooks(search, sort);
@@ -118,16 +118,49 @@ const getAccess = async (userId, bookId) => {
       return false; // Or you can throw an error to be handled by the calling function
     }
 
-    return data; // Return the inserted data if successful
+    return true; // Return the inserted data if successful
   } catch (error) {
     console.error("Error in insertEbAccess function:", error);
     return false; // Return false if there’s an unexpected error
   }
 };
 
+router.post("/redeem", async (req, res) => {
+  const { userId, bookId } = req.body;
+
+  if (!userId || !bookId) {
+    return res.status(400).json({
+      success: false,
+      message: "userId and bookId are required.",
+    });
+  }
+
+  try {
+    const accessGranted = await getAccess(userId, bookId);
+
+    if (accessGranted) {
+      return res.status(200).json({
+        success: true,
+        message: "Access granted successfully.",
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to grant access.",
+      });
+    }
+  } catch (error) {
+    console.error("Error in /grant-access route:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+});
+
 router.get("/get_ebooks", async (req, res) => {
   try {
-    const { userId } = req.query;
+    const { userId, search } = req.query;
 
     // Ensure userId is provided
     if (!userId) {
@@ -137,7 +170,9 @@ router.get("/get_ebooks", async (req, res) => {
     // Query the eb_access table for the given userId
     const { data, error } = await supabase
       .from("eb_access")
-      .select("*,books(page,title,author,description,genres,cover,language)")
+      .select(
+        "*,books(bookId,page,title,author,description,genres,cover,language,characters,attributes),eBooks(url)"
+      )
       .eq("userId", userId); // Filter rows based on userId
 
     if (error) {
@@ -145,11 +180,87 @@ router.get("/get_ebooks", async (req, res) => {
     }
 
     // Return the fetched data
-    res.json(data);
+    const response = applySearchFilter(data, search);
+    if (response.length != 0) {
+      return res.status(500).json({
+        success: true,
+        data: response,
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        message: "Nothing Found",
+      });
+    }
   } catch (error) {
     console.error("Error in get_ebooks route:", error);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+
+router.put("/update", async (req, res) => {
+  try {
+    const { userId, bookId, pageAt } = req.body;
+
+    // Validate the input parameters
+    if (!userId || !bookId || !pageAt) {
+      return res.status(400).json({
+        success: false,
+        error: "userId, bookId, and pageAt are required",
+      });
+    }
+
+    // Update the pageAt value for the given userId and bookId
+    const { data, error } = await supabase
+      .from("eb_access")
+      .upsert([{ userId, bookId, pageAt }], {
+        onConflict: ["userId", "bookId"],
+      });
+
+    // If there's an error, return the error message
+    if (error) {
+      console.error("Error updating pageAt:", error);
+      return res
+        .status(500)
+        .json({ success: false, error: "Error updating pageAt" });
+    }
+
+    // Return the updated data
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error in update_page route:", error);
+    res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
+});
+
+const applySearchFilter = (books, search) => {
+  // If there's no search term, return the books as is
+  if (!search) {
+    return books;
+  }
+
+  // Convert search term to lowercase for case-insensitive comparison
+  const lowerCaseSearch = search.toLowerCase();
+
+  return books.filter((book) => {
+    // Check if any field contains the search term (case-insensitive)
+    const fieldsToCheck = [
+      "title",
+      "description",
+      "genres",
+      "language",
+      "characters",
+      "attributes",
+    ];
+
+    return fieldsToCheck.some((field) => {
+      // Check if the field exists and contains the search term
+      if (book.books && book.books[field]) {
+        return book.books[field].toLowerCase().includes(lowerCaseSearch);
+      }
+      return false;
+    });
+  });
+};
 
 module.exports = router;
