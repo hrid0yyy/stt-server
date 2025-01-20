@@ -4,6 +4,7 @@ const path = require("path");
 const fs = require("fs/promises");
 const supabase = require("../config/supabase"); // Your Supabase client configuration
 const Tessaract = require("tesseract.js");
+const nlp = require("compromise");
 
 const router = express.Router();
 
@@ -90,6 +91,10 @@ router.post("/search", upload.single("image"), async (req, res) => {
 
     const searchItems = extractWords(data.text);
 
+    if (searchItems.length === 0) {
+      return res.status(200).json({ success: false, books: [] });
+    }
+
     try {
       let query = supabase.from("books").select("*");
 
@@ -99,7 +104,7 @@ router.post("/search", upload.single("image"), async (req, res) => {
         const searchConditions = searchItems
           .map(
             (item) =>
-              `title.ilike.%${item}%,description.ilike.%${item}%,genres.ilike.%${item}%,characters.ilike.%${item}%,attributes.ilike.%${item}%,author.ilike.%${item}%`
+              `title.ilike.%${item}%,genres.ilike.%${item}%,characters.ilike.%${item}%,attributes.ilike.%${item}%,author.ilike.%${item}%`
           )
           .join(",");
 
@@ -118,12 +123,6 @@ router.post("/search", upload.single("image"), async (req, res) => {
     } catch (error) {
       return res.status(500).json({ success: false, error: error.message });
     }
-
-    // This part should not be here anymore, as we're sending the response above
-    // res.status(200).json({
-    //   success: true,
-    //   books: "No Books Found",
-    // });
   } catch (error) {
     console.error("Error during text extraction:", error.message);
 
@@ -141,18 +140,13 @@ router.post("/search", upload.single("image"), async (req, res) => {
 });
 
 function extractWords(text) {
-  // Clean the text (remove unwanted newlines and characters)
-  const cleanedText = text.replace(/\n+/g, " ").replace(/~~/g, "").trim();
-
-  // Split the cleaned text into words
-  const wordsArray = cleanedText.split(/\s+/);
-
-  // Filter out words that contain special characters (only letters and numbers are kept)
-  const filteredWords = wordsArray.filter((word) =>
-    /^[a-zA-Z0-9]+$/.test(word)
-  );
-
-  return filteredWords;
+  return text
+    .replace(/\n+/g, " ")
+    .replace(/~~/g, "")
+    .trim()
+    .split(/\s+/)
+    .map((word) => word.replace(/[^a-zA-Z0-9]/g, ""))
+    .filter((word) => word.length >= 4);
 }
 
 module.exports = router;

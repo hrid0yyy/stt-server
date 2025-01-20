@@ -105,6 +105,7 @@ const fetchEbooks = async (searchTerm = "", sortOrder = "asc") => {
   }
 };
 
+// after payment use it in payment.js
 const getAccess = async (userId, bookId) => {
   try {
     // Insert into the 'eb_access' table with userId and bookId

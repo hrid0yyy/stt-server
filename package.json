@@ -13,6 +13,7 @@
     "@google-cloud/vision": "^4.3.2",
     "@supabase/supabase-js": "^2.47.12",
     "bcrypt": "^5.1.1",
+    "compromise": "^14.14.4",
     "cookie-parser": "^1.4.7",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
