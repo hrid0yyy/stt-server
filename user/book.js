@@ -302,22 +302,65 @@ router.post("/reviews", async (req, res) => {
   }
 });
 
+// if I search '1984'
+// {
+//   "success": true,
+//   "data": [
+//       {
+//           "bookId": 6,
+//           "created_at": "2025-01-21T12:04:07.895792+00:00",
+//           "userId": "28d7f62a-ba9d-42eb-95fd-a08bf3bafad1",
+//           "books": {
+//               "page": 300,
+//               "cover": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTG5WI5AX7jUYZmIN0_xkiW64LxxFNpsHY9LA&s",
+//               "price": 150,
+//               "title": "1984",
+//               "author": "George Owell",
+//               "bookId": 6,
+//               "genres": " Science fiction, Dystopian Fiction",
+//               "stocks": 8,
+//               "pubDate": "2025-01-01",
+//               "language": "English",
+//               "publisher": "Owell",
+//               "attributes": "Me",
+//               "characters": "Me",
+//               "created_at": "2025-01-13T16:26:59.326352+00:00",
+//               "description": "Nineteen Eighty-Four is a dystopian novel and cautionary tale by English writer George Orwell. It was published on 8 June 1949 by Secker & Warburg as Orwell's ninth and final book completed in his lifetime"
+//           }
+//       },
+//       {
+//           "bookId": 12,
+//           "created_at": "2025-01-20T06:31:25.408776+00:00",
+//           "userId": "28d7f62a-ba9d-42eb-95fd-a08bf3bafad1",
+//           "books": null
+//       }
+//   ]
+// }
+// search query remaining
 router.get("/get_wishlist", async (req, res) => {
   try {
-    const { userId } = req.query;
+    const { userId, search } = req.query;
 
     // Ensure userId is provided
     if (!userId) {
       return res.status(400).json({ error: "userId is required" });
     }
 
-    // Query the wishlist table for the given userId
-    const { data, error } = await supabase
+    // Build the query
+    let query = supabase
       .from("wishlist")
-      .select("*,books(*)")
+      .select("*, books(*)") // Fetch wishlist with book details
       .eq("userId", userId); // Filter rows based on userId
 
-    // If there's an error, return the error message
+    // If a search parameter is provided, apply it to the book title
+    if (search) {
+      query = query.ilike("books.title", `%${search}%`); // Case-insensitive partial match
+    }
+
+    // Execute the query
+    const { data, error } = await query;
+
+    // Handle errors during the query
     if (error) {
       console.error("Error fetching wishlist:", error);
       return res.status(500).json({ error: "Error fetching wishlist" });

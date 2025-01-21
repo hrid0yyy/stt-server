@@ -54,46 +54,4 @@ router.post("/check", async (req, res) => {
   }
 });
 
-router.put("/update", async (req, res) => {
-  // example json
-  // {
-  //   "id": "user-123",
-  //   "updates": { "username": "JohnDoe" }
-  // }
-  const { id, updates } = req.body;
-
-  if (!id) {
-    return res
-      .status(400)
-      .json({ success: false, error: "User ID is required!" });
-  }
-
-  if (!updates || Object.keys(updates).length === 0) {
-    return res
-      .status(400)
-      .json({ success: false, error: "No fields to update!" });
-  }
-
-  try {
-    // Update user details dynamically
-    const { data, error } = await supabase
-      .from("users")
-      .update(updates) // Pass the updates object directly
-      .eq("id", id)
-      .select("*"); // Returns the updated row
-
-    if (error) {
-      return res.status(500).json({ success: false, error: error.message });
-    }
-
-    res.json({
-      success: true,
-      message: "User updated successfully!",
-      user: data,
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: "Internal Server Error" });
-  }
-});
-
 module.exports = router;
