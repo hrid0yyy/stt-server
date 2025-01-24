@@ -1,6 +1,82 @@
+require("dotenv").config();
 const express = require("express");
 const router = express.Router();
 const supabase = require("../config/supabase");
+
+const SSLCommerzPayment = require("sslcommerz-lts");
+
+const store_id = process.env.STORE_ID;
+const store_passwd = process.env.STORE_PASS;
+const is_live = false; //true for live, false for sandbox
+
+router.get("/init", async (req, res) => {
+  try {
+    const userId = req.query.userId; // Retrieve userId from query parameters
+    const location = req.query.location;
+    const number = req.query.number;
+    const full_name = req.query.full_name;
+    const email = req.query.email;
+    console.log(location, number, full_name, email);
+    console.log("User ID:", userId);
+    // Call isEligible and wait for the result
+    const eligibilityResponse = await isEligible(userId);
+    console.log(eligibilityResponse);
+    if (!eligibilityResponse.success) {
+      // If not eligible, respond with the error message
+      return res
+        .status(400)
+        .send({ success: false, message: eligibilityResponse.message });
+    }
+
+    const tranId = `${userId}_${Date.now()}`;
+    console.log(tranId);
+    // Use the total price from the eligibility response
+    const data = {
+      total_amount: eligibilityResponse.totalPrice,
+      currency: "BDT",
+      tran_id: tranId, // Use unique tran_id for each API call
+      success_url: "http://localhost:3030/success",
+      fail_url: "http://localhost:3030/fail",
+      cancel_url: "http://localhost:3030/cancel",
+      ipn_url: "http://localhost:3030/ipn",
+      shipping_method: "Courier",
+      product_name: "Books",
+      product_category: "Books",
+      product_profile: "Books",
+      cus_name: full_name,
+      cus_email: email,
+      cus_add1: location,
+      cus_add2: location,
+      cus_city: location,
+      cus_state: location,
+      cus_postcode: "1000",
+      cus_country: "Bangladesh",
+      cus_phone: number,
+      cus_fax: "01711111111",
+      ship_name: full_name,
+      ship_add1: location,
+      ship_add2: location,
+      ship_city: location,
+      ship_state: location,
+      ship_postcode: 1000,
+      ship_country: "Bangladesh",
+    };
+
+    // Initialize SSLCommerz payment
+    const sslcz = new SSLCommerzPayment(store_id, store_passwd, is_live);
+    const apiResponse = await sslcz.init(data);
+
+    // Redirect the user to the payment gateway
+    const GatewayPageURL = apiResponse.GatewayPageURL;
+    console.log("Redirecting to:", GatewayPageURL);
+    return res.send({ success: true, url: GatewayPageURL });
+  } catch (error) {
+    console.error("Error in /init endpoint:", error.message);
+    return res
+      .status(500)
+      .send({ success: false, error: "Internal Server Error" });
+  }
+});
 
 // Route to get Cart API status
 router.get("/", (req, res) => {
@@ -32,7 +108,7 @@ const placeOrder = async (userId, address, totalPrice) => {
     // Insert the order into the orders table
     const { data: orderData, error: orderError } = await supabase
       .from("order")
-      .insert([{ address, items: itemsJson, price: totalPrice }])
+      .insert([{ address, items: itemsJson, price: totalPrice, userId }])
       .select("*")
       .single();
 
@@ -233,10 +309,10 @@ const isEligible = async (userId) => {
   const isAvailable = await checkStockAvailability(userId);
 
   if (isEmpty) {
-    return { success: false, error: "Cart is empty" };
+    return { success: false, message: "Cart is empty" };
   }
   if (!isAvailable) {
-    return { success: false, error: "Limitation of stock" };
+    return { success: false, message: "Limitation of stock" };
   }
   return { success: true, totalPrice };
 };
@@ -252,32 +328,35 @@ router.post("/place-order", async (req, res) => {
   }
 
   try {
-    // Check if the user is eligible
-    const data = await isEligible(userId);
+    // Get the total price for the user
+    const totalPrice = await getTotalPrice(userId);
 
-    if (data.success) {
-      // Deduct stock
-      const stockDeducted = await deductStock(userId);
+    // Check if stock can be deducted
+    const stockDeducted = await deductStock(userId);
 
-      if (stockDeducted) {
-        // Place the order
-        await placeOrder(userId, location);
-        return res.status(201).json({
-          success: true,
-          message: "Order placed successfully",
-        });
-      } else {
-        return res.status(400).json({
-          success: false,
-          error: "Failed to deduct stock",
-        });
-      }
+    if (stockDeducted) {
+      // Place the order
+      await placeOrder(userId, location, totalPrice);
+      console.log("Order placed successfully");
+
+      // Send success response
+      return res.status(201).json({
+        success: true,
+        message: "Order placed successfully",
+      });
+    } else {
+      // If stock deduction failed
+      return res.status(400).json({
+        success: false,
+        error: "Failed to place order",
+      });
     }
   } catch (error) {
     console.error("Error placing order:", error.message);
-    res.status(500).json({
+    // Handle unexpected errors
+    return res.status(500).json({
       success: false,
-      error: error.message,
+      error: "Internal server error",
     });
   }
 });
@@ -300,6 +379,116 @@ async () => {
     }
   } else {
     console.log(data);
+  }
+};
+
+router.get("/init-ebook", async (req, res) => {
+  try {
+    const userId = req.query.userId; // Retrieve userId from query parameters
+    const bookId = req.query.bookId; // Retrieve bookId from query parameters
+
+    console.log("User ID:", userId);
+    const user = await getUserDetails(userId);
+    const ebook = await getEbookDetails(bookId);
+
+    // get ebook name,price and user details
+    const tranId = `${userId}_${Date.now()}`;
+    // Use the total price from the eligibility response
+    const data = {
+      total_amount: ebook.price,
+      currency: "BDT",
+      tran_id: tranId, // Use unique tran_id for each API call
+      success_url: "http://localhost:3030/success",
+      fail_url: "http://localhost:3030/fail",
+      cancel_url: "http://localhost:3030/cancel",
+      ipn_url: "http://localhost:3030/ipn",
+      shipping_method: "Courier",
+      product_name: ebook.details[0].title,
+      product_category: "Books",
+      product_profile: "Books",
+      cus_name: user.full_name,
+      cus_email: user.email,
+      cus_add1: user.location,
+      cus_add2: user.location,
+      cus_city: user.location,
+      cus_state: user.location,
+      cus_postcode: "1000",
+      cus_country: "Bangladesh",
+      cus_phone: user.mobile_number,
+      cus_fax: "01711111111",
+      ship_name: user.full_name,
+      ship_add1: user.location,
+      ship_add2: user.location,
+      ship_city: user.location,
+      ship_state: user.location,
+      ship_postcode: 1000,
+      ship_country: "Bangladesh",
+    };
+
+    // Initialize SSLCommerz payment
+    const sslcz = new SSLCommerzPayment(store_id, store_passwd, is_live);
+    const apiResponse = await sslcz.init(data);
+    //   console.log(apiResponse);
+    // Redirect the user to the payment gateway
+    const GatewayPageURL = apiResponse.GatewayPageURL;
+    console.log("Redirecting to:", GatewayPageURL);
+    return res.send({ success: true, url: GatewayPageURL });
+  } catch (error) {
+    console.error("Error in /init endpoint:", error.message);
+    return res
+      .status(500)
+      .send({ success: false, error: "Internal Server Error" });
+  }
+});
+
+const getUserDetails = async (userId) => {
+  try {
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", userId);
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      return false;
+    }
+
+    return data[0];
+  } catch (error) {
+    return false;
+  }
+};
+
+const getEbookDetails = async (bookId) => {
+  try {
+    const { data, error } = await supabase
+      .from("eBooks") // Querying the eBooks table
+      .select("*") // Selecting all columns from eBooks and related rows from books
+      .eq("bookId", bookId); // Filtering where bookId matches the provided bookId
+
+    if (error) {
+      throw error; // Throwing error if query fails
+    }
+
+    if (!data || data.length === 0) {
+      return false; // Returning false if no data is found
+    }
+    const query = await supabase
+      .from("books") // Querying the eBooks table
+      .select("title") // Selecting all columns from eBooks and related rows from books
+      .eq("bookId", bookId); // Filtering where bookId matches the provided bookId
+
+    // Merging the results from both queries
+    const result = {
+      ...data[0],
+      details: query.data, // Including bookData in a nested property
+    };
+    return result;
+  } catch (error) {
+    return false; // Returning false if an error is caught
   }
 };
 

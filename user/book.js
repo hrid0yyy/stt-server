@@ -256,6 +256,44 @@ router.post("/rate", async (req, res) => {
   }
 });
 
+// search query remaining
+router.get("/get_wishlist", async (req, res) => {
+  try {
+    const { userId, search } = req.query;
+
+    // Ensure userId is provided
+    if (!userId) {
+      return res.status(400).json({ error: "userId is required" });
+    }
+
+    // Build the query
+    let query = supabase
+      .from("wishlist")
+      .select("*, books(*)") // Fetch wishlist with book details
+      .eq("userId", userId); // Filter rows based on userId
+
+    // If a search parameter is provided, apply it to the book title
+    if (search) {
+      query = query.ilike("books.title", `%${search}%`); // Case-insensitive partial match
+    }
+
+    // Execute the query
+    const { data, error } = await query;
+
+    // Handle errors during the query
+    if (error) {
+      console.error("Error fetching wishlist:", error);
+      return res.status(500).json({ error: "Error fetching wishlist" });
+    }
+
+    // Return the fetched wishlist data
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error("Error in get_wishlist route:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 router.post("/reviews", async (req, res) => {
   try {
     const { bookId } = req.body;
@@ -302,76 +340,157 @@ router.post("/reviews", async (req, res) => {
   }
 });
 
-// if I search '1984'
-// {
-//   "success": true,
-//   "data": [
-//       {
-//           "bookId": 6,
-//           "created_at": "2025-01-21T12:04:07.895792+00:00",
-//           "userId": "28d7f62a-ba9d-42eb-95fd-a08bf3bafad1",
-//           "books": {
-//               "page": 300,
-//               "cover": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTG5WI5AX7jUYZmIN0_xkiW64LxxFNpsHY9LA&s",
-//               "price": 150,
-//               "title": "1984",
-//               "author": "George Owell",
-//               "bookId": 6,
-//               "genres": " Science fiction, Dystopian Fiction",
-//               "stocks": 8,
-//               "pubDate": "2025-01-01",
-//               "language": "English",
-//               "publisher": "Owell",
-//               "attributes": "Me",
-//               "characters": "Me",
-//               "created_at": "2025-01-13T16:26:59.326352+00:00",
-//               "description": "Nineteen Eighty-Four is a dystopian novel and cautionary tale by English writer George Orwell. It was published on 8 June 1949 by Secker & Warburg as Orwell's ninth and final book completed in his lifetime"
-//           }
-//       },
-//       {
-//           "bookId": 12,
-//           "created_at": "2025-01-20T06:31:25.408776+00:00",
-//           "userId": "28d7f62a-ba9d-42eb-95fd-a08bf3bafad1",
-//           "books": null
-//       }
-//   ]
-// }
-// search query remaining
-router.get("/get_wishlist", async (req, res) => {
+router.get("/purchase-history", async (req, res) => {
+  const { userId } = req.query; // Get userId from query parameters
+
+  if (!userId) {
+    return res.status(400).json({
+      success: false,
+      error: "userId is required",
+    });
+  }
+
   try {
-    const { userId, search } = req.query;
+    // Query Supabase for orders by userId with status 'Delivered'
+    const { data, error } = await supabase
+      .from("order") // 'orders' is the name of the table
+      .select("*") // Select all columns
+      .eq("status", "Delivered") // Only get orders with status 'Delivered'
+      .eq("userId", userId)
+      .order("orderDate", { ascending: false }); // Filter by user_id
 
-    // Ensure userId is provided
-    if (!userId) {
-      return res.status(400).json({ error: "userId is required" });
-    }
-
-    // Build the query
-    let query = supabase
-      .from("wishlist")
-      .select("*, books(*)") // Fetch wishlist with book details
-      .eq("userId", userId); // Filter rows based on userId
-
-    // If a search parameter is provided, apply it to the book title
-    if (search) {
-      query = query.ilike("books.title", `%${search}%`); // Case-insensitive partial match
-    }
-
-    // Execute the query
-    const { data, error } = await query;
-
-    // Handle errors during the query
     if (error) {
-      console.error("Error fetching wishlist:", error);
-      return res.status(500).json({ error: "Error fetching wishlist" });
+      throw error;
     }
 
-    // Return the fetched wishlist data
-    res.json({ success: true, data });
+    if (!data || data.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No Purchase History Found",
+      });
+    }
+
+    // Enrich each order's items by adding book data
+    const enrichedOrders = await Promise.all(
+      data.map(async (order) => {
+        const enrichedOrder = await enrichOrderItems(order);
+        return enrichedOrder;
+      })
+    );
+
+    // Send the enriched orders back in the response
+    return res.status(200).json({
+      success: true,
+      orders: enrichedOrders,
+    });
   } catch (error) {
-    console.error("Error in get_wishlist route:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error(
+      "Error fetching purchase history from Supabase:",
+      error.message
+    );
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+    });
   }
 });
+
+router.get("/track-order", async (req, res) => {
+  const { userId } = req.query; // Get userId from query parameters
+
+  if (!userId) {
+    return res.status(400).json({
+      success: false,
+      error: "userId is required",
+    });
+  }
+
+  try {
+    // Query Supabase for orders by userId
+    const { data, error } = await supabase
+      .from("order") // 'orders' is the name of the table
+      .select("*") // Select all columns
+      .neq("status", "Delivered")
+      .eq("userId", userId)
+      .order("orderDate", { ascending: false }); // Filter by user_id
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No orders found for this user",
+      });
+    }
+
+    // Enrich order items by getting book data
+    const enrichedOrders = await Promise.all(
+      data.map(async (order) => {
+        const enrichedOrder = await enrichOrderItems(order);
+        return enrichedOrder;
+      })
+    );
+
+    // Send the orders back in the response
+    return res.status(200).json({
+      success: true,
+      orders: enrichedOrders,
+    });
+  } catch (error) {
+    console.error("Error fetching orders from Supabase:", error.message);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+    });
+  }
+});
+
+const enrichOrderItems = async (order) => {
+  try {
+    // Check if 'items' field is valid
+    if (!order.items || typeof order.items !== "string") {
+      console.error("Invalid or missing items field:", order);
+      return { ...order, items: [] }; // Return an empty items array if invalid
+    }
+
+    // Parse the stringified 'items' array
+    const items = JSON.parse(order.items);
+
+    // Get all bookIds from the items array
+    const bookIds = items.map((item) => item.bookId);
+
+    // Query the 'books' table to fetch book details by bookId
+    const { data: books, error } = await supabase
+      .from("books")
+      .select("bookId, title, cover")
+      .in("bookId", bookIds); // Filter by multiple bookIds
+
+    if (error) {
+      throw error;
+    }
+
+    // Map the book details to the corresponding items in the order
+    const enrichedItems = items.map((item) => {
+      const book = books.find((b) => b.bookId === item.bookId);
+      return {
+        ...item,
+        title: book ? book.title : "Unknown Title",
+        cover: book ? book.cover : "Unknown Cover",
+        bookId: book ? book.bookId : "Unknown BookId",
+      };
+    });
+
+    // Return the updated order with enriched items
+    return {
+      ...order,
+      items: enrichedItems,
+    };
+  } catch (error) {
+    console.error("Error enriching order items:", error.message);
+    throw error;
+  }
+};
 
 module.exports = router;

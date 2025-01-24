@@ -8,43 +8,44 @@ router.get("/", (req, res) => {
 });
 
 router.put("/update", async (req, res) => {
-  // example json
-  // {
-  //   "id": "user-123",
-  //   "updates": { "username": "JohnDoe" }
-  // }
-  const { id, updates } = req.body;
-
-  if (!id) {
-    return res
-      .status(400)
-      .json({ success: false, error: "User ID is required!" });
-  }
-
-  if (!updates || Object.keys(updates).length === 0) {
-    return res
-      .status(400)
-      .json({ success: false, error: "No fields to update!" });
-  }
-
   try {
-    // Update user details dynamically
-    const { data, error } = await supabase
-      .from("users")
-      .update(updates) // Pass the updates object directly
-      .eq("id", id)
-      .select("*"); // Returns the updated row
+    const { id, ...updateFields } = req.body;
 
-    if (error) {
-      return res.status(500).json({ success: false, error: error.message });
+    // Validate the request
+    if (!id) {
+      return res
+        .status(400)
+        .json({ success: false, error: "User ID is required" });
     }
 
+    if (!Object.keys(updateFields).length) {
+      return res
+        .status(400)
+        .json({ success: false, error: "No fields to update" });
+    }
+
+    // Update the user in the database
+    const { data, error } = await supabase
+      .from("users")
+      .update(updateFields)
+      .eq("id", id)
+      .select("*"); // Explicitly request the updated rows
+
+    // Handle Supabase errors
+    if (error) {
+      console.error("Error updating user:", error);
+      return res
+        .status(500)
+        .json({ success: false, error: "Failed to update user" });
+    }
+
+    // Success response
     res.json({
       success: true,
-      message: "User updated successfully!",
       user: data,
     });
-  } catch (err) {
+  } catch (error) {
+    console.error("Error in update_user route:", error);
     res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 });
@@ -53,7 +54,7 @@ router.get("/get_user", async (req, res) => {
   try {
     const { ownId, userId } = req.query;
 
-    // Ensure userId and ownId are provided
+    // Ensure userId and ownId are providesd
     if (!userId || !ownId) {
       return res.status(400).json({ error: "userId and ownId are required" });
     }
@@ -146,8 +147,7 @@ router.get("/get_user", async (req, res) => {
 
 router.post("/toggle-follow", async (req, res) => {
   try {
-    const { follower, following } = req.body;
-
+    const { follower, following, username } = req.body;
     // Validate inputs
     if (!follower) {
       return res
@@ -190,6 +190,11 @@ router.post("/toggle-follow", async (req, res) => {
         });
       }
 
+      const message = `${username} unfollowed you`;
+      await supabase
+        .from("notification")
+        .insert([{ userId: following, message }]);
+
       return res.json({
         success: true,
         message: `${follower} unfollowed ${following}`,
@@ -207,6 +212,11 @@ router.post("/toggle-follow", async (req, res) => {
         .status(500)
         .json({ success: false, error: "Error inserting follow relationship" });
     }
+
+    const message = `${username} started following you`;
+    await supabase
+      .from("notification")
+      .insert([{ userId: following, message }]);
 
     // Return success response
     res.json({
