@@ -144,9 +144,7 @@ router.post("/filter", async (req, res) => {
 
     // Add search filter if search is provided
     if (search) {
-      query = query.or(
-        `title.ilike.%${search}%,description.ilike.%${search}%,prefItem.ilike.%${search}%`
-      );
+      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
     }
 
     const { data, error } = await query;

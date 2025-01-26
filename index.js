@@ -68,6 +68,8 @@ app.get("/stats", async (req, res) => {
   }
 });
 
+// Function to get network information
+
 try {
   app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);

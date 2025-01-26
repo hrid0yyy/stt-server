@@ -153,6 +153,7 @@ router.get("/new", async (req, res) => {
     if (error) {
       throw error;
     }
+
     if (isSeen != "false") {
       markMessagesAsSeen(room);
     }

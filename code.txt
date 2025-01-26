@@ -1,0 +1,99 @@
+DROP FUNCTION IF EXISTS get_exchange_requests(UUID);
+
+CREATE OR REPLACE FUNCTION get_exchange_requests(receiver_id UUID)
+RETURNS TABLE(
+    reqid integer,
+    sender character varying,
+    receiver character varying,
+    receiver_book character varying,      
+    receiver_book_eid character varying,  
+    sender_book character varying,        
+    sender_book_eid character varying,    
+    created_at timestamp with time zone
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    exchange_req."reqId"::integer,  -- Cast BIGINT to INTEGER
+    sender.username AS sender,
+    receiver.username AS receiver,
+    receiver_book.title AS receiver_book,  -- Swapped: sender_book now holds receiver_book.title
+    receiver_book."exchangeId"::character varying AS sender_book_eid,  -- Swapped: sender_book_eid now holds receiver_book.exchangeId
+    sender_book.title AS sender_book,  -- Swapped: receiver_book now holds sender_book.title
+    sender_book."exchangeId"::character varying AS receiver_book_eid,  -- Swapped: receiver_book_eid now holds sender_book.exchangeId
+    exchange_req.created_at
+  FROM exchange_req
+  JOIN exchange_books AS receiver_book 
+    ON exchange_req.receiver_eid = receiver_book."exchangeId"
+  JOIN exchange_books AS sender_book 
+    ON exchange_req.sender_eid = sender_book."exchangeId"
+  JOIN users AS sender 
+    ON sender.id = sender_book."userId"
+  JOIN users AS receiver 
+    ON receiver.id = receiver_book."userId"  -- Receiver's user info
+  WHERE exchange_req.response = 'Pending'
+    AND sender_book.available = 1
+    AND receiver_book.available = 1
+    AND receiver.id::uuid = receiver_id;  -- Explicit cast for comparison
+END;
+$$;
+
+SELECT * FROM get_exchange_requests('28d7f62a-ba9d-42eb-95fd-a08bf3bafad1');
+
+
+
+// Route for extracting text from an image
+router.post("/extract-text", upload.single("image"), async (req, res) => {
+  try {
+    // Check if a file is uploaded
+    if (!req.file) {
+      return res
+        .status(400)
+        .json({ success: false, error: "No file uploaded" });
+    }
+
+    // Resolve the file path to the absolute path
+    const filePath = path.resolve(__dirname, "..", req.file.path); // Assuming the file is inside the "uploads/" folder
+
+    // Log the file path to verify it
+    console.log("File Path:", filePath);
+
+    // Ensure the file exists before attempting text extraction
+    const fileExists = await fs
+      .access(filePath)
+      .then(() => true)
+      .catch(() => false);
+
+    if (!fileExists) {
+      return res.status(400).json({ success: false, error: "File not found" });
+    }
+
+    // Extract text using Tesseract
+    const { data } = await Tessaract.recognize(filePath, "eng");
+
+    // Log extracted text to console (you can remove this later)
+    console.log(data.text);
+
+    // Delete the temporary file after processing
+    await fs.unlink(filePath);
+
+    // Respond with the extracted text
+    res.status(200).json({
+      success: true,
+      extractedText: data.text,
+    });
+  } catch (error) {
+    console.error("Error during text extraction:", error.message);
+
+    // Delete the temporary file in case of an error
+    if (req.file && req.file.path) {
+      await fs
+        .unlink(req.file.path)
+        .catch((err) => console.error("Error deleting file:", err.message));
+    }
+
+    res.status(500).json({ success: false, error: "Text extraction failed" });
+  }
+});
