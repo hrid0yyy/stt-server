@@ -9,7 +9,8 @@ router.get("/", (req, res) => {
 
 router.post("/add", async (req, res) => {
   try {
-    const { userId, title, location, description, prefItem, image } = req.body;
+    const { userId, title, location, description, prefItem, image, map } =
+      req.body;
 
     // Validate required fields
     if (!userId || !title || !location || !description || !prefItem || !image) {
@@ -29,6 +30,7 @@ router.post("/add", async (req, res) => {
           description,
           prefItem,
           image,
+          map,
         },
       ])
       .select("*"); // Ensure the inserted row is returned
@@ -439,6 +441,35 @@ router.get("/requests", async (req, res) => {
   } catch (err) {
     console.error("Error fetching exchange requests:", err);
     res.status(500).json({ error: "Something went wrong" });
+  }
+});
+
+// Example route
+router.get("/map", async (req, res) => {
+  const { userId } = req.query; // Extract userId from query params
+
+  if (!userId) {
+    return res.status(400).json({ error: "userId is required" });
+  }
+
+  try {
+    // Query the Supabase table
+    const { data, error } = await supabase
+      .from("exchange_books") // Replace with your table name
+      .select("*,users(*)")
+      .not("userId", "eq", userId) // userId does not match
+      .eq("available", 1)
+      .not("map", "is", null); // map column is not empty
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    // Respond with the filtered data
+    res.status(200).json(data);
+  } catch (err) {
+    console.error("Error querying database:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
